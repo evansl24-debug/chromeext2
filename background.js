@@ -637,7 +637,17 @@ class MessageHandler {
                 combined = combined.concat(data.images);
             }
         }
-        const deduped = Array.from(new Map(combined.map(i => [i.url, i])).values());
+        // Filter out obvious non-photo assets (icons, sprites)
+        const filtered = combined.filter(i => {
+            try {
+                const u = (i && i.url || '').toLowerCase();
+                if (!u) return false;
+                if (u.startsWith('data:')) return false;
+                if (u.includes('favicon') || u.includes('/icon/') || u.includes('/icons/') || u.includes('sprite') || u.endsWith('.svg')) return false;
+                return true;
+            } catch { return false; }
+        });
+        const deduped = Array.from(new Map(filtered.map(i => [i.url, i])).values());
         
         if (deduped.length > 0) {
             await this.processImages(deduped, settings);
@@ -670,7 +680,16 @@ class MessageHandler {
                     retryCombined = retryCombined.concat(data.images);
                 }
             }
-            const retryDeduped = Array.from(new Map(retryCombined.map(i => [i.url, i])).values());
+            const retryFiltered = retryCombined.filter(i => {
+                try {
+                    const u = (i && i.url || '').toLowerCase();
+                    if (!u) return false;
+                    if (u.startsWith('data:')) return false;
+                    if (u.includes('favicon') || u.includes('/icon/') || u.includes('/icons/') || u.includes('sprite') || u.endsWith('.svg')) return false;
+                    return true;
+                } catch { return false; }
+            });
+            const retryDeduped = Array.from(new Map(retryFiltered.map(i => [i.url, i])).values());
             if (retryDeduped.length > 0) {
                 await this.processImages(retryDeduped, settings);
                 await stateManager.update(state => { state.consecutiveEmptyPages = 0; });

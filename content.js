@@ -482,6 +482,42 @@ function collectNetworkImageUrls() {
     return urls;
 }
 
+function isLikelyValidImage(element, url) {
+    try {
+        // Basic URL-based exclusions for common non-photo assets
+        const lower = (url || '').toLowerCase();
+        const excludedSubstrings = ['sprite', 'favicon', '/icons/', '/icon/', '/logo', 'data:image/svg', '.svg'];
+        if (excludedSubstrings.some(s => lower.includes(s))) return false;
+
+        // Dimension-based filtering
+        const rect = element && element.getBoundingClientRect ? element.getBoundingClientRect() : { width: 0, height: 0 };
+        const approxWidth = Math.round(rect.width || 0);
+        const approxHeight = Math.round(rect.height || 0);
+
+        // Natural sizes for <img>
+        let naturalW = element && element.naturalWidth ? element.naturalWidth : 0;
+        let naturalH = element && element.naturalHeight ? element.naturalHeight : 0;
+
+        // Use the best available measurement
+        const width = Math.max(naturalW || 0, approxWidth || 0);
+        const height = Math.max(naturalH || 0, approxHeight || 0);
+
+        // Generic minimum thresholds to avoid icons
+        const MIN_SIZE = 80; // px
+        if (width && height && (width < MIN_SIZE || height < MIN_SIZE)) return false;
+
+        // Aspect ratio sanity: allow most photos; skip extremely thin assets
+        if (width > 0 && height > 0) {
+            const ratio = width > height ? width / height : height / width;
+            if (ratio > 8) return false; // extremely long banners/sprites
+        }
+
+        return true;
+    } catch (e) {
+        return true;
+    }
+}
+
 // Wait until at least one real image candidate appears or timeout
 function waitForImages(timeoutMs, imageSelector) {
     const timeout = typeof timeoutMs === 'number' ? timeoutMs : 5000;
@@ -539,6 +575,7 @@ async function extractImagesInternal(settings = {}) {
             try { url = new URL(url, window.location.href).toString(); } catch (e) { continue; }
         }
         if (url.startsWith('data:')) continue;
+        if (!isLikelyValidImage(el, url)) continue;
         if (seen.has(url)) continue;
         seen.add(url);
 
@@ -560,6 +597,9 @@ async function extractImagesInternal(settings = {}) {
             let url = raw.startsWith('//') ? window.location.protocol + raw : raw;
             try { url = new URL(url, window.location.href).toString(); } catch (e) { continue; }
             if (url.startsWith('data:')) continue;
+            // No element to size-check; allow only non-obvious sprite/icon names
+            const lower = url.toLowerCase();
+            if (['sprite', 'favicon', '/icons/', '/icon/', '/logo', '.svg'].some(s => lower.includes(s))) continue;
             if (seen.has(url)) continue;
             seen.add(url);
             images.push({ url });
@@ -574,6 +614,8 @@ async function extractImagesInternal(settings = {}) {
             let url = raw.startsWith('//') ? window.location.protocol + raw : raw;
             try { url = new URL(url, window.location.href).toString(); } catch (e) { continue; }
             if (url.startsWith('data:')) continue;
+            const lower = url.toLowerCase();
+            if (['sprite', 'favicon', '/icons/', '/icon/', '/logo', '.svg'].some(s => lower.includes(s))) continue;
             if (seen.has(url)) continue;
             seen.add(url);
             images.push({ url });
