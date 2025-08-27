@@ -845,15 +845,7 @@ document.addEventListener('DOMContentLoaded', function() {
             extractImages.addEventListener('click', () => extractImagesFromContainer());
         }
         
-        const startPagination = document.getElementById('startPagination');
-        if (startPagination) {
-            startPagination.addEventListener('click', () => startPaginationMode());
-        }
-        
-        const stopPagination = document.getElementById('stopPagination');
-        if (stopPagination) {
-            stopPagination.addEventListener('click', () => stopPaginationMode());
-        }
+        // Pagination buttons removed; pagination handled automatically during scraping when mode=all
         
         const targetNextPage = document.getElementById('targetNextPage');
         if (targetNextPage) {
@@ -926,11 +918,7 @@ document.addEventListener('DOMContentLoaded', function() {
             input.addEventListener('change', saveSelectors);
         });
         
-        // Filter inputs
-        const filterInputs = document.querySelectorAll('.filter-input');
-        filterInputs.forEach(input => {
-            input.addEventListener('change', saveFilters);
-        });
+        // Filters removed
     }
     
     // Enhanced scraping functions
@@ -1292,40 +1280,10 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification('success', 'Selectors Saved', 'Selectors have been saved');
     }
     
-    function saveFilters() {
-        const filters = {
-            minWidth: document.getElementById('minWidth').value,
-            minHeight: document.getElementById('minHeight').value,
-            maxImages: document.getElementById('maxImages').value,
-            urlPattern: document.getElementById('urlPattern').value
-        };
-        
-        localStorage.setItem('steptwo-filters', JSON.stringify(filters));
-        showNotification('success', 'Filters Saved', 'Filters have been saved');
-    }
+    // Filters removed
     
     // Pagination functions
-    function startPaginationMode() {
-        if (!backgroundState || !backgroundState.originalTabId) {
-            showNotification('error', 'No Target', 'Please select a target page first');
-            return;
-        }
-        
-        chrome.runtime.sendMessage({
-            action: 'startPagination',
-            tabId: backgroundState.originalTabId
-        });
-        
-        showNotification('info', 'Pagination Started', 'Pagination mode activated');
-    }
-    
-    function stopPaginationMode() {
-        chrome.runtime.sendMessage({
-            action: 'stopPagination'
-        });
-        
-        showNotification('info', 'Pagination Stopped', 'Pagination mode deactivated');
-    }
+    // Manual pagination start/stop removed; use mode selector and Start/Stop scraping
     
     function startNextPageTargeting() {
         if (!backgroundState || !backgroundState.originalTabId) {
