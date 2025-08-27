@@ -1032,6 +1032,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelector(`[data-profile="${profileName}"]`).classList.add('active');
             
             showNotification('success', 'Profile Selected', `${profile.name} profile loaded`);
+            const label = document.getElementById('currentProfileLabel');
+            if (label) label.textContent = profileName;
         }
     }
     
