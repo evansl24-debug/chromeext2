@@ -459,6 +459,29 @@ function collectHeadAndNoscriptImages() {
     return urls;
 }
 
+// Collect image URLs observed in Performance entries (network-level)
+function collectNetworkImageUrls() {
+    const urls = [];
+    try {
+        const entries = performance.getEntriesByType && performance.getEntriesByType('resource');
+        const imageExt = /\.(?:jpe?g|png|gif|webp|bmp|svg|avif|tiff?)(?:$|[?#])/i;
+        if (entries && entries.length) {
+            for (const e of entries) {
+                const name = e && e.name;
+                if (!name || typeof name !== 'string') continue;
+                // Prefer entries likely to be images
+                const it = (e.initiatorType || '').toLowerCase();
+                if (it === 'img' || it === 'image' || it === 'css' || it === 'link') {
+                    if (imageExt.test(name)) urls.push(name);
+                } else if (imageExt.test(name)) {
+                    urls.push(name);
+                }
+            }
+        }
+    } catch (e) {}
+    return urls;
+}
+
 // Wait until at least one real image candidate appears or timeout
 function waitForImages(timeoutMs, imageSelector) {
     const timeout = typeof timeoutMs === 'number' ? timeoutMs : 5000;
@@ -533,6 +556,20 @@ async function extractImagesInternal(settings = {}) {
     // Supplement from head/noscript
     if (images.length < maxImages) {
         const extras = collectHeadAndNoscriptImages();
+        for (const raw of extras) {
+            let url = raw.startsWith('//') ? window.location.protocol + raw : raw;
+            try { url = new URL(url, window.location.href).toString(); } catch (e) { continue; }
+            if (url.startsWith('data:')) continue;
+            if (seen.has(url)) continue;
+            seen.add(url);
+            images.push({ url });
+            if (images.length >= maxImages) break;
+        }
+    }
+
+    // Supplement from network performance entries
+    if (images.length < maxImages) {
+        const extras = collectNetworkImageUrls();
         for (const raw of extras) {
             let url = raw.startsWith('//') ? window.location.protocol + raw : raw;
             try { url = new URL(url, window.location.href).toString(); } catch (e) { continue; }
