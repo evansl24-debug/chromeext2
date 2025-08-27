@@ -1,11 +1,15 @@
 // Enhanced error handling for content script
-function handleScrapingError(message) {
+function handleScrapingError(input) {
     try {
+        const payload = typeof input === 'string' ? { error: input } : (input || {});
         chrome.runtime.sendMessage({
             action: 'contentScriptError',
-            error: message,
-            timestamp: Date.now(),
-            url: window.location.href
+            error: payload.error || 'Unknown error',
+            timestamp: payload.timestamp || Date.now(),
+            url: payload.url || window.location.href,
+            filename: payload.filename || undefined,
+            lineno: payload.lineno || undefined,
+            type: payload.type || 'error'
         });
     } catch (error) {
         console.error('Failed to send error to background:', error);
@@ -14,14 +18,27 @@ function handleScrapingError(message) {
 
 // Global error handler
 window.addEventListener('error', (event) => {
-    log('Global error in content script:', event.error);
-    handleScrapingError(`Global error: ${event.error.message}`);
+    try {
+        const filename = event && event.filename;
+        // Ignore page-origin errors; report only extension-related ones
+        if (filename && !String(filename).startsWith('chrome-extension://')) return;
+        const message = (event && event.error && event.error.message) || event.message || 'Unknown error';
+        log('Global error in content script:', message);
+        handleScrapingError({ error: `Global error: ${message}` , filename, lineno: event && event.lineno, type: 'error' });
+    } catch (e) {
+        // swallow
+    }
 });
 
 // Unhandled promise rejection handler
 window.addEventListener('unhandledrejection', (event) => {
-    log('Unhandled promise rejection in content script:', event.reason);
-    handleScrapingError(`Unhandled promise rejection: ${event.reason}`);
+    try {
+        const reason = (event && event.reason && (event.reason.message || String(event.reason))) || 'Unknown rejection';
+        log('Unhandled promise rejection in content script:', reason);
+        handleScrapingError({ error: `Unhandled promise rejection: ${reason}`, type: 'unhandledrejection' });
+    } catch (e) {
+        // swallow
+    }
 });
 
 // STEPTWO Gallery Scraper - Content Script

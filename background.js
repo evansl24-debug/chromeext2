@@ -259,6 +259,12 @@ class MessageHandler {
         this.handlers.set('extractImagesFromContainer', this.handleExtractImagesFromContainer.bind(this));
         this.handlers.set('testSelectors', this.handleTestSelectors.bind(this));
         this.handlers.set('startNextPageTargeting', this.handleStartNextPageTargeting.bind(this));
+        // Gracefully handle dashboard actions not yet implemented
+        this.handlers.set('stopAllDownloads', this.handleStopAllDownloads.bind(this));
+        this.handlers.set('downloadAllImages', this.handleDownloadAllImages.bind(this));
+        this.handlers.set('openDownloadsFolder', this.handleOpenDownloadsFolder.bind(this));
+        this.handlers.set('startPagination', async () => ({ status: 'noop' }));
+        this.handlers.set('stopPagination', async () => ({ status: 'noop' }));
     }
     
     async handleMessage(message, sender) {
@@ -477,6 +483,30 @@ class MessageHandler {
     async handleStartNextPageTargeting(tabId) {
         await this.injectContentScript(tabId);
         await chrome.tabs.sendMessage(tabId, { action: 'startNextPageTargeting' });
+    }
+
+    async handleStopAllDownloads() {
+        // Clear pending queue and active downloads softly
+        downloadManager.downloadQueue = [];
+        return { status: 'stopped' };
+    }
+
+    async handleDownloadAllImages(data) {
+        const state = stateManager.getState();
+        const items = (data && data.items) || state.collectedItems || [];
+        for (const it of items) {
+            try {
+                await downloadManager.queueDownload(it.url, it.filename || this.generateFilename({ url: it.url }, state.settings), state.settings);
+            } catch (e) {
+                console.warn('queue download failed', e);
+            }
+        }
+        return { status: 'queued', count: items.length };
+    }
+
+    async handleOpenDownloadsFolder() {
+        // Chrome does not allow programmatic opening of the downloads folder from service worker
+        return { status: 'unsupported' };
     }
     
     // Helper methods
