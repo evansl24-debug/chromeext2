@@ -1008,7 +1008,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function getCurrentSettings() {
         const settings = {
             containerSelector: document.getElementById('containerSelector')?.value || '',
-            imageSelector: document.getElementById('imageSelector')?.value || 'img',
+            imageSelector: document.getElementById('imageSelector')?.value || 'img, picture img, [data-src], [data-srcset], [style*="background-image"]',
             linkSelector: document.getElementById('linkSelector')?.value || 'a',
             titleSelector: document.getElementById('titleSelector')?.value || '.title',
             nextPageSelector: document.getElementById('nextPageSelector')?.value || '.next',
@@ -1016,6 +1016,7 @@ document.addEventListener('DOMContentLoaded', function() {
             downloadFolder: document.getElementById('downloadFolder')?.value || 'STEPTWO_Images',
             maxPages: parseInt(document.getElementById('maxPages')?.value || '0') || 0,
             pageWait: parseInt(document.getElementById('pageWait')?.value || '3') || 3,
+            imageWait: parseInt(document.getElementById('imageWait')?.value || '5000') || 5000,
             scrollDelay: parseInt(document.getElementById('scrollDelay')?.value || '1000') || 1000,
             maxScrollAttempts: parseInt(document.getElementById('maxScrollAttempts')?.value || '5') || 5,
             retryAttempts: parseInt(document.getElementById('retryAttempts')?.value || '3') || 3,
@@ -1211,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.runtime.sendMessage({
             action: 'extractImagesFromContainer',
             tabId: backgroundState.originalTabId,
-            containerSelector: containerSelector
+            data: { container: containerSelector }
         });
         
         showNotification('info', 'Extracting Images', 'Extracting images from container...');

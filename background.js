@@ -259,6 +259,12 @@ class MessageHandler {
         this.handlers.set('extractImagesFromContainer', this.handleExtractImagesFromContainer.bind(this));
         this.handlers.set('testSelectors', this.handleTestSelectors.bind(this));
         this.handlers.set('startNextPageTargeting', this.handleStartNextPageTargeting.bind(this));
+        // Gracefully handle dashboard actions not yet implemented
+        this.handlers.set('stopAllDownloads', this.handleStopAllDownloads.bind(this));
+        this.handlers.set('downloadAllImages', this.handleDownloadAllImages.bind(this));
+        this.handlers.set('openDownloadsFolder', this.handleOpenDownloadsFolder.bind(this));
+        this.handlers.set('startPagination', async () => ({ status: 'noop' }));
+        this.handlers.set('stopPagination', async () => ({ status: 'noop' }));
     }
     
     async handleMessage(message, sender) {
@@ -451,12 +457,12 @@ class MessageHandler {
         return await this.generateXLSX(state.collectedItems);
     }
     
-    async handleStartContainerSelection(tabId) {
+    async handleStartContainerSelection(data, tabId) {
         await this.injectContentScript(tabId);
         await chrome.tabs.sendMessage(tabId, { action: 'startContainerSelection' });
     }
     
-    async handleExtractImagesFromContainer(tabId, data) {
+    async handleExtractImagesFromContainer(data, tabId) {
         await this.injectContentScript(tabId);
         const result = await chrome.tabs.sendMessage(tabId, {
             action: 'extractImagesFromContainer',
@@ -465,7 +471,7 @@ class MessageHandler {
         return result;
     }
     
-    async handleTestSelectors(tabId, data) {
+    async handleTestSelectors(data, tabId) {
         await this.injectContentScript(tabId);
         const result = await chrome.tabs.sendMessage(tabId, {
             action: 'testSelectors',
@@ -477,6 +483,30 @@ class MessageHandler {
     async handleStartNextPageTargeting(tabId) {
         await this.injectContentScript(tabId);
         await chrome.tabs.sendMessage(tabId, { action: 'startNextPageTargeting' });
+    }
+
+    async handleStopAllDownloads() {
+        // Clear pending queue and active downloads softly
+        downloadManager.downloadQueue = [];
+        return { status: 'stopped' };
+    }
+
+    async handleDownloadAllImages(data) {
+        const state = stateManager.getState();
+        const items = (data && data.items) || state.collectedItems || [];
+        for (const it of items) {
+            try {
+                await downloadManager.queueDownload(it.url, it.filename || this.generateFilename({ url: it.url }, state.settings), state.settings);
+            } catch (e) {
+                console.warn('queue download failed', e);
+            }
+        }
+        return { status: 'queued', count: items.length };
+    }
+
+    async handleOpenDownloadsFolder() {
+        // Chrome does not allow programmatic opening of the downloads folder from service worker
+        return { status: 'unsupported' };
     }
     
     // Helper methods
@@ -502,17 +532,9 @@ class MessageHandler {
     }
     
     async injectContentScript(tabId) {
-        try {
-            await chrome.scripting.executeScript({
-                target: { tabId },
-                files: ['content.js']
-            });
-        } catch (error) {
-            // Content script might already be injected
-            if (!error.message.includes('already injected')) {
-                throw error;
-            }
-        }
+        // No-op: content.js is injected via manifest.json (all_frames=true)
+        // Avoid double-injecting to prevent "Identifier has already been declared" errors
+        return;
     }
     
     async scrapePage(tabId, url, settings) {
@@ -524,25 +546,140 @@ class MessageHandler {
         
         // Extract images
         const results = await chrome.scripting.executeScript({
-            target: { tabId },
-            func: (settings) => {
-                return window.extractImagesFromPage(settings);
+            target: { tabId, allFrames: true },
+            func: async (settings) => {
+                try {
+                    if (window.extractImagesFromPage) {
+                        return await window.extractImagesFromPage(settings);
+                    }
+                } catch (e) {}
+                // Fallback ad-hoc extractor when content script is unavailable
+                function pickBestFromSrcset(srcset) {
+                    if (!srcset) return null;
+                    const parts = srcset.split(',').map(s => s.trim()).filter(Boolean);
+                    let best = null; let bestScore = -1;
+                    for (const p of parts) {
+                        const [url, desc] = p.split(/\s+/);
+                        if (!url) continue;
+                        const mW = desc && desc.match(/^(\d+)w$/);
+                        const mX = desc && desc.match(/^([\d.]+)x$/);
+                        let score = -1;
+                        if (mW) score = parseInt(mW[1], 10);
+                        else if (mX) score = parseFloat(mX[1]);
+                        if (score > bestScore) { bestScore = score; best = url; }
+                        if (!desc && !best) best = url;
+                    }
+                    return best;
+                }
+                function getImageUrlFromEl(el) {
+                    const tag = el.tagName && el.tagName.toLowerCase();
+                    if (tag === 'img') {
+                        if (el.currentSrc && !String(el.currentSrc).startsWith('data:')) return el.currentSrc;
+                        if (el.src && !String(el.src).startsWith('data:')) return el.src;
+                        const dataAttrs = ['data-src','data-original','data-lazy','data-file','data-large_image'];
+                        for (const a of dataAttrs) { const v = el.getAttribute(a); if (v) return v; }
+                        const dss = el.getAttribute('data-srcset'); if (dss) { const p = pickBestFromSrcset(dss); if (p) return p; }
+                        const ss = el.getAttribute('srcset'); if (ss) { const p = pickBestFromSrcset(ss); if (p) return p; }
+                    }
+                    if (tag === 'source') {
+                        const ss = el.getAttribute('srcset'); if (ss) { const p = pickBestFromSrcset(ss); if (p) return p; }
+                        if (el.src) return el.src;
+                    }
+                    const child = el.querySelector && el.querySelector('img, picture img, source');
+                    if (child) { const u = getImageUrlFromEl(child); if (u) return u; }
+                    const cs = getComputedStyle(el);
+                    if (cs && cs.backgroundImage && cs.backgroundImage !== 'none') {
+                        const m = cs.backgroundImage.match(/url\(["']?(.*?)["']?\)/); if (m && m[1]) return m[1];
+                    }
+                    const inline = el.getAttribute && el.getAttribute('style');
+                    if (inline && inline.includes('background-image')) {
+                        const m = inline.match(/url\(["']?(.*?)["']?\)/); if (m && m[1]) return m[1];
+                    }
+                    return null;
+                }
+                try {
+                    const robustDefault = 'img, picture img, [data-src], [data-srcset], [style*="background-image"]';
+                    const imageSel = settings && (settings.imageSelector || (settings.selectors && settings.selectors.image)) || robustDefault;
+                    const containerSel = settings && (settings.containerSelector || (settings.selectors && settings.selectors.container)) || '';
+                    let nodes = [];
+                    if (containerSel) {
+                        document.querySelectorAll(containerSel).forEach(c => {
+                            try { c.querySelectorAll(imageSel).forEach(n => nodes.push(n)); } catch(e) {}
+                        });
+                    } else {
+                        nodes = Array.from(document.querySelectorAll(imageSel));
+                    }
+                    const seen = new Set();
+                    const images = [];
+                    for (const el of nodes) {
+                        let url = getImageUrlFromEl(el);
+                        if (!url) continue;
+                        if (url.startsWith('//')) url = location.protocol + url;
+                        try { url = new URL(url, location.href).toString(); } catch(e) { continue; }
+                        if (url.startsWith('data:')) continue;
+                        if (seen.has(url)) continue;
+                        seen.add(url);
+                        images.push({ url });
+                    }
+                    return { images };
+                } catch (e) {
+                    return { images: [] };
+                }
             },
             args: [settings]
         });
         
-        const extractedData = results[0].result;
+        // Combine results from all frames and dedupe by URL
+        let combined = [];
+        for (const frame of results) {
+            const data = frame && frame.result;
+            if (data && Array.isArray(data.images)) {
+                combined = combined.concat(data.images);
+            }
+        }
+        const deduped = Array.from(new Map(combined.map(i => [i.url, i])).values());
         
-        if (extractedData && extractedData.images) {
-            await this.processImages(extractedData.images, settings);
+        if (deduped.length > 0) {
+            await this.processImages(deduped, settings);
             await stateManager.update(state => {
                 state.consecutiveEmptyPages = 0;
             });
         } else {
+            // Fallback: attempt to scroll to trigger lazy-loaded images, then retry once
+            const retryResults = await chrome.scripting.executeScript({
+                target: { tabId, allFrames: true },
+                func: async (settings) => {
+                    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+                    for (let i = 0; i < 4; i++) {
+                        try { window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }); } catch (e) {}
+                        await sleep(800);
+                    }
+                    if (window.extractImagesFromPage) {
+                        try {
+                            return await window.extractImagesFromPage({ ...settings, imageWait: (settings.imageWait || 5000) + 3000 });
+                        } catch (e) {}
+                    }
+                    return { images: [] };
+                },
+                args: [settings]
+            });
+            let retryCombined = [];
+            for (const frame of retryResults) {
+                const data = frame && frame.result;
+                if (data && Array.isArray(data.images)) {
+                    retryCombined = retryCombined.concat(data.images);
+                }
+            }
+            const retryDeduped = Array.from(new Map(retryCombined.map(i => [i.url, i])).values());
+            if (retryDeduped.length > 0) {
+                await this.processImages(retryDeduped, settings);
+                await stateManager.update(state => { state.consecutiveEmptyPages = 0; });
+            } else {
             await stateManager.update(state => {
                 state.consecutiveEmptyPages++;
             });
             await stateManager.addLog('warning', `No images found on page ${state.currentPage}`);
+            }
         }
         
         // Check for pagination
