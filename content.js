@@ -241,3 +241,285 @@ function safeContentExecute(fn, context = 'content') {
 
 // Initialize
 log('Content script loaded');
+
+// Robust image extraction helpers and message handling
+
+// Parse a srcset string and return the best candidate (largest width or density)
+function pickBestFromSrcset(srcset) {
+    if (!srcset || typeof srcset !== 'string') return null;
+    const parts = srcset.split(',').map(s => s.trim()).filter(Boolean);
+    let bestUrl = null;
+    let bestScore = -1;
+    for (const part of parts) {
+        const [url, descriptor] = part.split(/\s+/);
+        if (!url) continue;
+        if (!descriptor) {
+            bestUrl = url;
+            continue;
+        }
+        const widthMatch = descriptor.match(/^(\d+)w$/);
+        const densityMatch = descriptor.match(/^([\d.]+)x$/);
+        let score = -1;
+        if (widthMatch) {
+            score = parseInt(widthMatch[1], 10);
+        } else if (densityMatch) {
+            score = parseFloat(densityMatch[1]);
+        }
+        if (score > bestScore) {
+            bestScore = score;
+            bestUrl = url;
+        }
+    }
+    return bestUrl;
+}
+
+// Extract a usable image URL from a DOM element
+function getImageUrlFromElement(element) {
+    if (!element) return null;
+    try {
+        const tagName = element.tagName ? element.tagName.toLowerCase() : '';
+
+        // IMG element handling
+        if (tagName === 'img') {
+            if (element.currentSrc && !String(element.currentSrc).startsWith('data:')) return element.currentSrc;
+            if (element.src && !String(element.src).startsWith('data:')) return element.src;
+
+            const lazyAttrs = ['data-src', 'data-original', 'data-lazy', 'data-file', 'data-large_image'];
+            for (const attr of lazyAttrs) {
+                const val = element.getAttribute(attr);
+                if (val && !String(val).startsWith('data:')) return val;
+            }
+
+            const dataSrcset = element.getAttribute('data-srcset');
+            if (dataSrcset) {
+                const best = pickBestFromSrcset(dataSrcset);
+                if (best) return best;
+            }
+
+            const srcset = element.getAttribute('srcset');
+            if (srcset) {
+                const best = pickBestFromSrcset(srcset);
+                if (best) return best;
+            }
+        }
+
+        // SOURCE inside PICTURE
+        if (tagName === 'source') {
+            const ss = element.getAttribute('srcset');
+            if (ss) {
+                const best = pickBestFromSrcset(ss);
+                if (best) return best;
+            }
+            if (element.src && !String(element.src).startsWith('data:')) return element.src;
+        }
+
+        // Child IMG or SOURCE
+        if (element.querySelector) {
+            const child = element.querySelector('img, picture img, source');
+            if (child) {
+                const url = getImageUrlFromElement(child);
+                if (url) return url;
+            }
+        }
+
+        // CSS background-image (computed style and inline style)
+        const style = window.getComputedStyle(element);
+        if (style && style.backgroundImage && style.backgroundImage !== 'none') {
+            const match = style.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+            if (match && match[1]) return match[1];
+        }
+        const inline = element.getAttribute && element.getAttribute('style');
+        if (inline && inline.includes('background-image')) {
+            const match = inline.match(/url\(["']?(.*?)["']?\)/);
+            if (match && match[1]) return match[1];
+        }
+
+        // Any data-* that looks like a URL
+        if (element.attributes) {
+            for (const attr of element.attributes) {
+                if (!attr.name.startsWith('data-')) continue;
+                const v = attr.value;
+                if (v && (v.startsWith('http') || v.startsWith('//') || v.startsWith('/'))) return v;
+            }
+        }
+    } catch (error) {
+        log('getImageUrlFromElement error:', error);
+    }
+    return null;
+}
+
+// Query elements across Shadow DOM
+function queryAllWithShadowRoots(root, selector) {
+    const results = [];
+    const start = root || document;
+    try {
+        if (start.querySelectorAll) {
+            start.querySelectorAll(selector).forEach(el => results.push(el));
+        }
+    } catch (e) {
+        // ignore invalid selector errors on certain roots
+    }
+
+    const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT, null);
+    let node = walker.nextNode();
+    while (node) {
+        if (node.shadowRoot) {
+            try {
+                node.shadowRoot.querySelectorAll(selector).forEach(el => results.push(el));
+            } catch (e) {}
+        }
+        node = walker.nextNode();
+    }
+    return results;
+}
+
+// Wait until at least one real image candidate appears or timeout
+function waitForImages(timeoutMs, imageSelector) {
+    const timeout = typeof timeoutMs === 'number' ? timeoutMs : 5000;
+    const selector = imageSelector || 'img, picture img, [data-src], [data-srcset], [style*="background-image"]';
+    return new Promise(resolve => {
+        const checkNow = () => {
+            const candidates = queryAllWithShadowRoots(document, selector);
+            return candidates.some(el => !!getImageUrlFromElement(el));
+        };
+        if (checkNow()) return resolve(true);
+        const observer = memoryManager.createObserver(MutationObserver, () => {
+            if (checkNow()) {
+                try { observer.disconnect(); } catch (e) {}
+                memoryManager.observers.delete(observer);
+                resolve(true);
+            }
+        });
+        observer.observe(document.documentElement || document.body, { childList: true, subtree: true, attributes: true });
+        memoryManager.setTimeout(() => {
+            try { observer.disconnect(); } catch (e) {}
+            memoryManager.observers.delete(observer);
+            resolve(false);
+        }, timeout);
+    });
+}
+
+async function extractImagesInternal(settings = {}) {
+    const robustDefaultSelector = 'img, picture img, [data-src], [data-srcset], [style*="background-image"]';
+    const containerSelector = settings.containerSelector || (settings.selectors && settings.selectors.container) || '';
+    const imageSelector = settings.imageSelector || (settings.selectors && settings.selectors.image) || robustDefaultSelector;
+    const waitTimeout = (settings.imageWait && Number.isFinite(settings.imageWait)) ? settings.imageWait : 5000;
+    const maxImages = Number.isFinite(settings.maxImages) ? settings.maxImages : 1000;
+
+    await waitForImages(waitTimeout, imageSelector);
+
+    let nodes = [];
+    if (containerSelector) {
+        const containers = queryAllWithShadowRoots(document, containerSelector);
+        for (const container of containers) {
+            try {
+                container.querySelectorAll(imageSelector).forEach(el => nodes.push(el));
+            } catch (e) {}
+        }
+    } else {
+        nodes = queryAllWithShadowRoots(document, imageSelector);
+    }
+
+    const seen = new Set();
+    const images = [];
+    for (const el of nodes) {
+        const urlRaw = getImageUrlFromElement(el);
+        if (!urlRaw) continue;
+        let url = urlRaw.startsWith('//') ? window.location.protocol + urlRaw : urlRaw;
+        if (!/^https?:/i.test(url)) {
+            try { url = new URL(url, window.location.href).toString(); } catch (e) { continue; }
+        }
+        if (url.startsWith('data:')) continue;
+        if (seen.has(url)) continue;
+        seen.add(url);
+
+        const item = {
+            url,
+            alt: el.getAttribute && (el.getAttribute('alt') || '') || '',
+            width: el.naturalWidth || el.width || null,
+            height: el.naturalHeight || el.height || null,
+            tag: el.tagName ? el.tagName.toLowerCase() : undefined
+        };
+        images.push(item);
+        if (images.length >= maxImages) break;
+    }
+
+    return { images };
+}
+
+// Expose as global and wrap with safe execution
+window.extractImagesFromPage = safeContentExecute(extractImagesInternal, 'extractImagesFromPage');
+
+// Test selector utility for debugging via dashboard
+function testSelectorsInternal(data) {
+    const containerSelector = data && (data.container || data.containerSelector) || '';
+    const imageSelector = data && (data.image || data.imageSelector) || 'img, picture img, [data-src], [data-srcset], [style*="background-image"]';
+    let scopeElements = [];
+    if (containerSelector) {
+        scopeElements = queryAllWithShadowRoots(document, containerSelector);
+    } else {
+        scopeElements = [document];
+    }
+    let matches = [];
+    for (const scope of scopeElements) {
+        try {
+            scope.querySelectorAll(imageSelector).forEach(el => matches.push(el));
+        } catch (e) {}
+    }
+    const sample = matches.slice(0, 10).map(el => ({
+        url: getImageUrlFromElement(el),
+        tag: el.tagName ? el.tagName.toLowerCase() : '',
+        hasBg: !!(el.getAttribute && el.getAttribute('style') && el.getAttribute('style').includes('background-image'))
+    }));
+    return { count: matches.length, sample };
+}
+
+// Message handling from background/dashboard
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    try {
+        if (!message || !message.action) return;
+        if (message.action === 'waitForPageLoad') {
+            const respond = () => sendResponse({ ready: true });
+            if (document.readyState === 'complete') {
+                respond();
+            } else {
+                window.addEventListener('load', () => respond(), { once: true });
+            }
+            return true;
+        }
+        if (message.action === 'testSelectors') {
+            try {
+                const result = testSelectorsInternal(message.data || {});
+                sendResponse({ success: true, message: `Matched ${result.count} elements`, data: result });
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+            return true;
+        }
+        if (message.action === 'extractImagesFromContainer') {
+            (async () => {
+                try {
+                    const data = message.data || {};
+                    const container = data.container || data.containerSelector || '';
+                    const result = await extractImagesInternal({ containerSelector: container });
+                    sendResponse({ success: true, data: result });
+                } catch (error) {
+                    sendResponse({ success: false, error: error.message });
+                }
+            })();
+            return true;
+        }
+        if (message.action === 'startContainerSelection') {
+            // Minimal stub to acknowledge command (full UI selection not implemented here)
+            sendResponse({ success: true });
+            return true;
+        }
+        if (message.action === 'startNextPageTargeting') {
+            sendResponse({ success: true });
+            return true;
+        }
+    } catch (error) {
+        try { sendResponse({ success: false, error: error.message }); } catch (e) {}
+        return true;
+    }
+});

@@ -451,12 +451,12 @@ class MessageHandler {
         return await this.generateXLSX(state.collectedItems);
     }
     
-    async handleStartContainerSelection(tabId) {
+    async handleStartContainerSelection(data, tabId) {
         await this.injectContentScript(tabId);
         await chrome.tabs.sendMessage(tabId, { action: 'startContainerSelection' });
     }
     
-    async handleExtractImagesFromContainer(tabId, data) {
+    async handleExtractImagesFromContainer(data, tabId) {
         await this.injectContentScript(tabId);
         const result = await chrome.tabs.sendMessage(tabId, {
             action: 'extractImagesFromContainer',
@@ -465,7 +465,7 @@ class MessageHandler {
         return result;
     }
     
-    async handleTestSelectors(tabId, data) {
+    async handleTestSelectors(data, tabId) {
         await this.injectContentScript(tabId);
         const result = await chrome.tabs.sendMessage(tabId, {
             action: 'testSelectors',
@@ -504,7 +504,7 @@ class MessageHandler {
     async injectContentScript(tabId) {
         try {
             await chrome.scripting.executeScript({
-                target: { tabId },
+                target: { tabId, allFrames: true },
                 files: ['content.js']
             });
         } catch (error) {
@@ -524,17 +524,30 @@ class MessageHandler {
         
         // Extract images
         const results = await chrome.scripting.executeScript({
-            target: { tabId },
-            func: (settings) => {
-                return window.extractImagesFromPage(settings);
+            target: { tabId, allFrames: true },
+            func: async (settings) => {
+                try {
+                    if (window.extractImagesFromPage) {
+                        return await window.extractImagesFromPage(settings);
+                    }
+                } catch (e) {}
+                return { images: [] };
             },
             args: [settings]
         });
         
-        const extractedData = results[0].result;
+        // Combine results from all frames and dedupe by URL
+        let combined = [];
+        for (const frame of results) {
+            const data = frame && frame.result;
+            if (data && Array.isArray(data.images)) {
+                combined = combined.concat(data.images);
+            }
+        }
+        const deduped = Array.from(new Map(combined.map(i => [i.url, i])).values());
         
-        if (extractedData && extractedData.images) {
-            await this.processImages(extractedData.images, settings);
+        if (deduped.length > 0) {
+            await this.processImages(deduped, settings);
             await stateManager.update(state => {
                 state.consecutiveEmptyPages = 0;
             });
