@@ -532,17 +532,9 @@ class MessageHandler {
     }
     
     async injectContentScript(tabId) {
-        try {
-            await chrome.scripting.executeScript({
-                target: { tabId, allFrames: true },
-                files: ['content.js']
-            });
-        } catch (error) {
-            // Content script might already be injected
-            if (!error.message.includes('already injected')) {
-                throw error;
-            }
-        }
+        // No-op: content.js is injected via manifest.json (all_frames=true)
+        // Avoid double-injecting to prevent "Identifier has already been declared" errors
+        return;
     }
     
     async scrapePage(tabId, url, settings) {
@@ -582,10 +574,41 @@ class MessageHandler {
                 state.consecutiveEmptyPages = 0;
             });
         } else {
+            // Fallback: attempt to scroll to trigger lazy-loaded images, then retry once
+            const retryResults = await chrome.scripting.executeScript({
+                target: { tabId, allFrames: true },
+                func: async (settings) => {
+                    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+                    for (let i = 0; i < 4; i++) {
+                        try { window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' }); } catch (e) {}
+                        await sleep(800);
+                    }
+                    if (window.extractImagesFromPage) {
+                        try {
+                            return await window.extractImagesFromPage({ ...settings, imageWait: (settings.imageWait || 5000) + 3000 });
+                        } catch (e) {}
+                    }
+                    return { images: [] };
+                },
+                args: [settings]
+            });
+            let retryCombined = [];
+            for (const frame of retryResults) {
+                const data = frame && frame.result;
+                if (data && Array.isArray(data.images)) {
+                    retryCombined = retryCombined.concat(data.images);
+                }
+            }
+            const retryDeduped = Array.from(new Map(retryCombined.map(i => [i.url, i])).values());
+            if (retryDeduped.length > 0) {
+                await this.processImages(retryDeduped, settings);
+                await stateManager.update(state => { state.consecutiveEmptyPages = 0; });
+            } else {
             await stateManager.update(state => {
                 state.consecutiveEmptyPages++;
             });
             await stateManager.addLog('warning', `No images found on page ${state.currentPage}`);
+            }
         }
         
         // Check for pagination

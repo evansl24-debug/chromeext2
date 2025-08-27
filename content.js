@@ -45,7 +45,10 @@ window.addEventListener('unhandledrejection', (event) => {
 // Critical fixes for memory leaks, security, and reliability
 
 // Set DEBUG to false for production
-const CONTENT_DEBUG = false;
+if (!window.__STEPTWO_CONTENT_DEFINED__) {
+    window.__STEPTWO_CONTENT_DEFINED__ = true;
+    var CONTENT_DEBUG = false;
+}
 
 // Logging function with debug control
 function log(...args) {
@@ -519,6 +522,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const data = message.data || {};
                     const container = data.container || data.containerSelector || '';
                     const result = await extractImagesInternal({ containerSelector: container });
+                    sendResponse({ success: true, data: result });
+                } catch (error) {
+                    sendResponse({ success: false, error: error.message });
+                }
+            })();
+            return true;
+        }
+        if (message.action === 'extractImagesNow') {
+            (async () => {
+                try {
+                    const result = await extractImagesInternal(message.data || {});
                     sendResponse({ success: true, data: result });
                 } catch (error) {
                     sendResponse({ success: false, error: error.message });
