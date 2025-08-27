@@ -309,7 +309,11 @@ function getImageUrlFromElement(element) {
             if (element.currentSrc && !String(element.currentSrc).startsWith('data:')) return element.currentSrc;
             if (element.src && !String(element.src).startsWith('data:')) return element.src;
 
-            const lazyAttrs = ['data-src', 'data-original', 'data-lazy', 'data-file', 'data-large_image'];
+            const lazyAttrs = [
+                'data-src','data-original','data-lazy','data-file','data-large_image',
+                'data-original-src','data-thumb','data-image','data-lazy-src','data-ll-src',
+                'data-hires','data-zoom','data-large','data-url'
+            ];
             for (const attr of lazyAttrs) {
                 const val = element.getAttribute(attr);
                 if (val && !String(val).startsWith('data:')) return val;
@@ -330,6 +334,13 @@ function getImageUrlFromElement(element) {
 
         // SOURCE inside PICTURE
         if (tagName === 'source') {
+            const dss = element.getAttribute('data-srcset');
+            if (dss) {
+                const best = pickBestFromSrcset(dss);
+                if (best) return best;
+            }
+            const ds = element.getAttribute('data-src');
+            if (ds) return ds;
             const ss = element.getAttribute('srcset');
             if (ss) {
                 const best = pickBestFromSrcset(ss);
@@ -353,6 +364,19 @@ function getImageUrlFromElement(element) {
             const match = style.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
             if (match && match[1]) return match[1];
         }
+        // Pseudo elements
+        try {
+            const beforeStyle = window.getComputedStyle(element, '::before');
+            if (beforeStyle && beforeStyle.backgroundImage && beforeStyle.backgroundImage !== 'none') {
+                const m = beforeStyle.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+                if (m && m[1]) return m[1];
+            }
+            const afterStyle = window.getComputedStyle(element, '::after');
+            if (afterStyle && afterStyle.backgroundImage && afterStyle.backgroundImage !== 'none') {
+                const m = afterStyle.backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+                if (m && m[1]) return m[1];
+            }
+        } catch (e) {}
         const inline = element.getAttribute && element.getAttribute('style');
         if (inline && inline.includes('background-image')) {
             const match = inline.match(/url\(["']?(.*?)["']?\)/);
@@ -396,6 +420,43 @@ function queryAllWithShadowRoots(root, selector) {
         node = walker.nextNode();
     }
     return results;
+}
+
+// Collect image-like URLs from <noscript>, <meta>, and <link rel="preload">
+function collectHeadAndNoscriptImages() {
+    const urls = [];
+    try {
+        // Meta OpenGraph/Twitter
+        document.querySelectorAll('meta[property="og:image"], meta[name="og:image"], meta[name="twitter:image"], meta[property="twitter:image"]').forEach(m => {
+            const c = m.getAttribute('content');
+            if (c) urls.push(c);
+        });
+        // Preloads
+        document.querySelectorAll('link[rel~="preload"][as="image"][href], link[rel~="preload"][imagesrcset], link[as="image"][href]').forEach(l => {
+            const href = l.getAttribute('href');
+            const srcset = l.getAttribute('imagesrcset');
+            if (srcset) {
+                const best = pickBestFromSrcset(srcset);
+                if (best) urls.push(best);
+            } else if (href) {
+                urls.push(href);
+            }
+        });
+        // <noscript>
+        document.querySelectorAll('noscript').forEach(ns => {
+            try {
+                const html = ns.textContent || ns.innerHTML;
+                if (!html) return;
+                const tmp = document.createElement('div');
+                tmp.innerHTML = html;
+                tmp.querySelectorAll('img, source').forEach(el => {
+                    const u = getImageUrlFromElement(el);
+                    if (u) urls.push(u);
+                });
+            } catch (e) {}
+        });
+    } catch (e) {}
+    return urls;
 }
 
 // Wait until at least one real image candidate appears or timeout
@@ -467,6 +528,20 @@ async function extractImagesInternal(settings = {}) {
         };
         images.push(item);
         if (images.length >= maxImages) break;
+    }
+
+    // Supplement from head/noscript
+    if (images.length < maxImages) {
+        const extras = collectHeadAndNoscriptImages();
+        for (const raw of extras) {
+            let url = raw.startsWith('//') ? window.location.protocol + raw : raw;
+            try { url = new URL(url, window.location.href).toString(); } catch (e) { continue; }
+            if (url.startsWith('data:')) continue;
+            if (seen.has(url)) continue;
+            seen.add(url);
+            images.push({ url });
+            if (images.length >= maxImages) break;
+        }
     }
 
     return { images };
