@@ -480,7 +480,7 @@ class MessageHandler {
         return result;
     }
     
-    async handleStartNextPageTargeting(tabId) {
+    async handleStartNextPageTargeting(data, tabId) {
         await this.injectContentScript(tabId);
         await chrome.tabs.sendMessage(tabId, { action: 'startNextPageTargeting' });
     }
