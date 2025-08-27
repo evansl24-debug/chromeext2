@@ -174,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let runtimeInterval = null;
     let currentTheme = 'light';
     let currentProfile = 'universal';
+    let bgPort = null;
     
     // Site profiles with pre-configured settings
     const siteProfiles = {
@@ -373,9 +374,11 @@ document.addEventListener('DOMContentLoaded', function() {
     async function updateScrapingState() {
         try {
             const response = await safeSendMessage({ action: 'getScrapingState' });
-            if (response) {
-                backgroundState = response;
+            if (response && response.success) {
+                backgroundState = response.data;
                 updateUI();
+            } else {
+                console.warn('getScrapingState returned unsuccessful response', response);
             }
         } catch (error) {
             console.error('Error updating scraping state:', error);
@@ -1639,18 +1642,18 @@ document.addEventListener('DOMContentLoaded', function() {
             addToActivityLog('Requesting state from background script', 'debug');
             const response = await safeSendMessage({ action: 'getScrapingState' });
             
-            if (response) {
-                backgroundState = response;
+            if (response && response.success) {
+                backgroundState = response.data;
                 addToActivityLog('State received from background', 'info', {
-                    originalTabId: response.originalTabId,
-                    originalTabUrl: response.originalTabUrl,
-                    isActive: response.isActive,
-                    isPaused: response.isPaused
+                    originalTabId: response.data?.originalTabId,
+                    originalTabUrl: response.data?.originalTabUrl,
+                    isActive: response.data?.isActive,
+                    isPaused: response.data?.isPaused
                 });
                 updateUI();
             } else {
                 addToActivityLog('No response from getScrapingState', 'warning');
-                console.warn('No response from getScrapingState');
+                console.warn('No response or unsuccessful from getScrapingState', response);
             }
         } catch (error) {
             addToActivityLog('Failed to update scraping state', 'error', {
@@ -1699,6 +1702,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (pingResponse) {
                     addToActivityLog('Background connection established', 'success');
                     console.log('Background connection established');
+                    
+                    // Open a persistent port for live state sync
+                    try {
+                        bgPort = chrome.runtime.connect({ name: 'dashboard' });
+                        addToActivityLog('Opened port to background for live updates', 'info');
+                        
+                        bgPort.onMessage.addListener((msg) => {
+                            if (msg && msg.action === 'stateUpdate') {
+                                addToActivityLog('Live state update received', 'debug', {
+                                    originalTabId: msg.data?.originalTabId,
+                                    originalTabUrl: msg.data?.originalTabUrl
+                                });
+                                backgroundState = msg.data || backgroundState;
+                                updateUI();
+                            }
+                        });
+                        
+                        bgPort.onDisconnect.addListener(() => {
+                            addToActivityLog('Background port disconnected', 'warning');
+                        });
+                        
+                        // Notify background that dashboard is ready to receive updates
+                        bgPort.postMessage({ action: 'dashboardConnected' });
+                    } catch (e) {
+                        addToActivityLog('Failed to open background port', 'error', e.message);
+                    }
                     
                     // Load initial state after connection is confirmed
                     await updateScrapingState();
