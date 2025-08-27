@@ -1,0 +1,38 @@
+{
+  "name": "steptwo-gallery-scraper",
+  "version": "2.0.0",
+  "description": "Professional Chrome extension for scraping image galleries from authenticated websites",
+  "main": "background.js",
+  "scripts": {
+    "build": "echo 'No build process required for Chrome extension'",
+    "test": "echo 'Open test.html in browser to test extension'",
+    "lint": "echo 'No linting configured yet'",
+    "package": "zip -r steptwo-gallery-scraper.zip . -x '*.git*' '*.DS_Store' 'node_modules/*' '*.zip'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "web-scraping",
+    "gallery-scraper",
+    "image-scraper",
+    "manifest-v3",
+    "browser-extension"
+  ],
+  "author": "STEPTWO Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/steptwo-gallery-scraper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/steptwo-gallery-scraper/issues"
+  },
+  "homepage": "https://github.com/yourusername/steptwo-gallery-scraper#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {},
+  "dependencies": {},
+  "browserslist": [
+    "Chrome >= 88"
+  ]
+}

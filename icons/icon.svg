@@ -1,0 +1,27 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#grad1)" stroke="#2c3e50" stroke-width="4"/>
+  
+  <!-- Camera icon -->
+  <rect x="40" y="50" width="48" height="32" rx="4" fill="white" opacity="0.9"/>
+  <circle cx="64" cy="66" r="8" fill="white" opacity="0.9"/>
+  <circle cx="64" cy="66" r="6" fill="#2c3e50"/>
+  
+  <!-- Gallery frames -->
+  <rect x="25" y="35" width="20" height="15" rx="2" fill="white" opacity="0.7"/>
+  <rect x="83" y="35" width="20" height="15" rx="2" fill="white" opacity="0.7"/>
+  <rect x="25" y="78" width="20" height="15" rx="2" fill="white" opacity="0.7"/>
+  <rect x="83" y="78" width="20" height="15" rx="2" fill="white" opacity="0.7"/>
+  
+  <!-- Scraping indicator -->
+  <circle cx="64" cy="100" r="3" fill="#e74c3c">
+    <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+</svg>

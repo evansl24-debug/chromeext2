@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEPTWO Extension Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>STEPTWO Gallery Scraper - Extension Test</h1>
+    
+    <div class="test-section">
+        <h2>Extension Status</h2>
+        <div id="extensionStatus" class="status info">Checking extension status...</div>
+        <button class="test-button" onclick="checkExtension()">Check Extension</button>
+        <button class="test-button" onclick="openDashboard()">Open Dashboard</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Images</h2>
+        <p>This page contains test images for scraping:</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+            <div class="gallery-item">
+                <img src="https://via.placeholder.com/200x150/007bff/ffffff?text=Test+Image+1" alt="Test Image 1">
+                <h3>Test Image 1</h3>
+            </div>
+            <div class="gallery-item">
+                <img src="https://via.placeholder.com/200x150/28a745/ffffff?text=Test+Image+2" alt="Test Image 2">
+                <h3>Test Image 2</h3>
+            </div>
+            <div class="gallery-item">
+                <img src="https://via.placeholder.com/200x150/dc3545/ffffff?text=Test+Image+3" alt="Test Image 3">
+                <h3>Test Image 3</h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Debug Information</h2>
+        <div id="debugInfo"></div>
+        <button class="test-button" onclick="getDebugInfo()">Get Debug Info</button>
+    </div>
+
+    <script>
+        function checkExtension() {
+            const statusDiv = document.getElementById('extensionStatus');
+            
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ Chrome extension API is available';
+                
+                // Try to communicate with the extension
+                chrome.runtime.sendMessage({ action: 'getScrapingState' }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = '❌ Extension not responding: ' + chrome.runtime.lastError.message;
+                    } else {
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = '✅ Extension is working correctly!';
+                    }
+                });
+            } else {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Chrome extension API not available';
+            }
+        }
+        
+        function openDashboard() {
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                chrome.runtime.sendMessage({ action: 'openDashboard' }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        alert('Error opening dashboard: ' + chrome.runtime.lastError.message);
+                    } else {
+                        alert('Dashboard should be opening...');
+                    }
+                });
+            } else {
+                alert('Chrome extension API not available');
+            }
+        }
+        
+        function getDebugInfo() {
+            const debugDiv = document.getElementById('debugInfo');
+            const info = {
+                userAgent: navigator.userAgent,
+                chromeVersion: navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] || 'Unknown',
+                extensionAPI: typeof chrome !== 'undefined',
+                runtimeAPI: typeof chrome !== 'undefined' && chrome.runtime,
+                location: window.location.href,
+                timestamp: new Date().toISOString()
+            };
+            
+            debugDiv.innerHTML = '<pre>' + JSON.stringify(info, null, 2) + '</pre>';
+        }
+        
+        // Auto-check extension on load
+        window.addEventListener('load', () => {
+            setTimeout(checkExtension, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STEPTWO Gallery Scraper - Professional Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="icon" type="image/png" href="icons/icon48.png">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <img src="icons/icon48.png" alt="STEPTWO" class="logo">
+                    <div class="brand">
+                        <h1>STEPTWO Gallery Scraper</h1>
+                        <span class="version">v2.2.0 Professional</span>
+                    </div>
+                </div>
+                <div class="header-controls">
+                    <div class="connection-status" id="connectionStatus">
+                        <span class="status-indicator"></span>
+                        <span class="status-text">Connecting...</span>
+                    </div>
+                    <button class="icon-btn" id="themeToggle" aria-label="Toggle Theme">🌙</button>
+                    <button class="icon-btn danger" id="emergencyStop" aria-label="Emergency Stop">🚨</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard -->
+        <main class="dashboard-main">
+            <!-- Sidebar -->
+            <aside class="dashboard-sidebar">
+                <!-- Quick Actions -->
+                <section class="sidebar-section">
+                    <h3 class="section-title">Quick Actions</h3>
+                    <div class="quick-actions">
+                        <button class="action-btn primary" id="startScraping">
+                            <span class="btn-icon">🚀</span> Start Scraping
+                        </button>
+                        <button class="action-btn" id="pauseBtn" disabled>
+                            <span class="btn-icon">⏸️</span> Pause
+                        </button>
+                        <button class="action-btn" id="resumeBtn" disabled>
+                            <span class="btn-icon">▶️</span> Resume
+                        </button>
+                        <button class="action-btn danger" id="stopBtn" disabled>
+                            <span class="btn-icon">⏹️</span> Stop
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Target Page -->
+                <section class="sidebar-section">
+                    <h3 class="section-title">Target Page</h3>
+                    <div class="target-page">
+                        <div class="page-info" id="pageInfo">
+                            <div class="page-url" id="currentTabUrl">No target page selected</div>
+                            <div class="target-buttons">
+                                <button class="select-page-btn" id="selectCurrentTab">Select Current Tab</button>
+                                <button class="select-page-btn force-btn" id="forceSelectCurrentTab">Force Update</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Site Profiles -->
+                <section class="sidebar-section">
+                    <h3 class="section-title">Site Profiles</h3>
+                    <div class="profile-grid">
+                        <button class="profile-btn active" data-profile="universal">
+                            <span class="profile-icon">🌐</span>
+                            Universal
+                        </button>
+                        <button class="profile-btn" data-profile="imago">
+                            <span class="profile-icon">📸</span>
+                            Imago
+                        </button>
+                        <button class="profile-btn" data-profile="getty">
+                            <span class="profile-icon">🎨</span>
+                            Getty
+                        </button>
+                        <button class="profile-btn" data-profile="shutterstock">
+                            <span class="profile-icon">🖼️</span>
+                            Shutterstock
+                        </button>
+                        <button class="profile-btn" data-profile="custom">
+                            <span class="profile-icon">⚙️</span>
+                            Custom
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Scraping Modes -->
+                <section class="sidebar-section">
+                    <h3 class="section-title">Scraping Mode</h3>
+                    <div class="mode-selector">
+                        <label class="mode-option">
+                            <input type="radio" name="scrapingMode" value="current" checked>
+                            <span class="mode-content">
+                                <span class="mode-icon">📄</span>
+                                <span class="mode-text">Current Page</span>
+                            </span>
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="scrapingMode" value="all">
+                            <span class="mode-content">
+                                <span class="mode-icon">📚</span>
+                                <span class="mode-text">All Pages</span>
+                            </span>
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="scrapingMode" value="smart">
+                            <span class="mode-content">
+                                <span class="mode-icon">🧠</span>
+                                <span class="mode-text">Smart Detect</span>
+                            </span>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Advanced Controls -->
+                <details class="sidebar-section collapsible">
+                    <summary class="section-title">
+                        Advanced Controls
+                        <span class="expand-icon">▼</span>
+                    </summary>
+                    <div class="advanced-controls">
+                        <!-- Container Selection -->
+                        <div class="control-group">
+                            <label class="control-label">Container Selection</label>
+                            <div class="control-buttons">
+                                <button class="control-btn" id="selectContainer">
+                                    <span class="btn-icon">🎯</span> Select Container
+                                </button>
+                                <button class="control-btn" id="extractImages">
+                                    <span class="btn-icon">📸</span> Extract Images
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="control-group">
+                            <label class="control-label">Pagination</label>
+                            <div class="control-buttons">
+                                <button class="control-btn" id="startPagination">
+                                    <span class="btn-icon">🔄</span> Start Pagination
+                                </button>
+                                <button class="control-btn" id="stopPagination">
+                                    <span class="btn-icon">⏹️</span> Stop Pagination
+                                </button>
+                                <button class="control-btn" id="targetNextPage">
+                                    <span class="btn-icon">🎯</span> Pick Next Button
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Smart Selection -->
+                        <div class="control-group">
+                            <label class="control-label">Smart Selection</label>
+                            <div class="control-buttons">
+                                <button class="control-btn" id="smartSelect">
+                                    <span class="btn-icon">🧠</span> Smart Select
+                                </button>
+                                <button class="control-btn" id="testSelectors">
+                                    <span class="btn-icon">🧪</span> Test Selectors
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Settings -->
+                <details class="sidebar-section collapsible">
+                    <summary class="section-title">
+                        Settings
+                        <span class="expand-icon">▼</span>
+                    </summary>
+                    <div class="settings-panel">
+                        <!-- Basic Settings -->
+                        <div class="setting-group">
+                            <label class="setting-label">Page Wait (seconds)</label>
+                            <input type="number" id="pageWait" value="3" min="1" max="30" class="setting-input">
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label class="setting-label">Max Downloads</label>
+                            <input type="number" id="maxDownloads" value="100" min="1" max="10000" class="setting-input">
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label class="setting-label">Download Folder</label>
+                            <input type="text" id="downloadFolder" value="STEPTWO_Images" class="setting-input">
+                        </div>
+
+                        <!-- Pagination Settings -->
+                        <div class="setting-group">
+                            <label class="setting-label">Max Pages (0=unlimited)</label>
+                            <input type="number" id="maxPages" value="0" min="0" max="1000" class="setting-input">
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label class="setting-label">Page Delay (ms)</label>
+                            <input type="number" id="pageDelay" value="1000" min="100" max="10000" class="setting-input">
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label class="setting-label">Pagination Type</label>
+                            <select id="paginationType" class="setting-input">
+                                <option value="auto">Auto-Detect</option>
+                                <option value="nextButton">Next Button</option>
+                                <option value="infiniteScroll">Infinite Scroll</option>
+                            </select>
+                        </div>
+
+                        <!-- Download Settings -->
+                        <div class="setting-group">
+                            <label class="setting-label">Max Concurrent Downloads</label>
+                            <input type="number" id="maxConcurrent" value="5" min="1" max="10" class="setting-input">
+                        </div>
+                        
+                        <div class="setting-group">
+                            <label class="setting-label">Retry Attempts</label>
+                            <input type="number" id="retryAttempts" value="3" min="0" max="10" class="setting-input">
+                        </div>
+
+                        <!-- Export Settings -->
+                        <div class="setting-group">
+                            <label class="setting-label">Export Options</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-option">
+                                    <input type="checkbox" id="exportJson" checked>
+                                    <span>JSON</span>
+                                </label>
+                                <label class="checkbox-option">
+                                    <input type="checkbox" id="exportCsv" checked>
+                                    <span>CSV</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Selectors -->
+                <details class="sidebar-section collapsible">
+                    <summary class="section-title">
+                        Selectors
+                        <span class="expand-icon">▼</span>
+                    </summary>
+                    <div class="selectors-panel">
+                        <div class="selector-group">
+                            <label class="selector-label">Container Selector</label>
+                            <input type="text" id="containerSelector" value=".gallery-item" class="selector-input" placeholder="e.g., .gallery-item">
+                        </div>
+                        
+                        <div class="selector-group">
+                            <label class="selector-label">Image Selector</label>
+                            <input type="text" id="imageSelector" value="img" class="selector-input" placeholder="e.g., img">
+                        </div>
+                        
+                        <div class="selector-group">
+                            <label class="selector-label">Link Selector</label>
+                            <input type="text" id="linkSelector" value="a" class="selector-input" placeholder="e.g., a">
+                        </div>
+                        
+                        <div class="selector-group">
+                            <label class="selector-label">Title Selector</label>
+                            <input type="text" id="titleSelector" value=".title" class="selector-input" placeholder="e.g., .title">
+                        </div>
+                        
+                        <div class="selector-group">
+                            <label class="selector-label">Next Page Selector</label>
+                            <input type="text" id="nextPageSelector" value=".next" class="selector-input" placeholder="e.g., .next">
+                        </div>
+
+                        <div class="selector-actions">
+                            <button class="selector-btn" id="saveCustomSelectors">
+                                <span class="btn-icon">💾</span> Save Selectors
+                            </button>
+                            <button class="selector-btn" id="resetCounter">
+                                <span class="btn-icon">🔄</span> Reset Counter
+                            </button>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Image Filters -->
+                <details class="sidebar-section collapsible">
+                    <summary class="section-title">
+                        Image Filters
+                        <span class="expand-icon">▼</span>
+                    </summary>
+                    <div class="filters-panel">
+                        <div class="filter-group">
+                            <label class="filter-label">Min Width (px)</label>
+                            <input type="number" id="minWidth" value="120" min="1" class="filter-input">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label class="filter-label">Min Height (px)</label>
+                            <input type="number" id="minHeight" value="120" min="1" class="filter-input">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label class="filter-label">Max Images</label>
+                            <input type="number" id="maxImages" value="1000" min="1" max="10000" class="filter-input">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label class="filter-label">URL Pattern (regex)</label>
+                            <input type="text" id="urlPattern" value="" class="filter-input" placeholder="e.g., \\.jpg$">
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Filename Pattern -->
+                <details class="sidebar-section collapsible">
+                    <summary class="section-title">
+                        Filename Pattern
+                        <span class="expand-icon">▼</span>
+                    </summary>
+                    <div class="filename-panel">
+                        <div class="pattern-input-group">
+                            <input type="text" id="filenamePattern" value="*name*_*num*.*ext*" class="pattern-input" placeholder="Enter filename pattern">
+                            <div class="pattern-preview" id="patternPreview">
+                                <span class="preview-label">Preview:</span>
+                                <span class="preview-text" id="filenamePreview">image_001.jpg</span>
+                            </div>
+                        </div>
+                        
+                        <div class="token-grid" id="tokenGrid">
+                            <!-- Tokens will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </details>
+            </aside>
+
+            <!-- Main Content -->
+            <div class="dashboard-content">
+                <!-- Status Bar -->
+                <div class="status-bar">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span class="status-value" id="statusDisplay">Ready to scrape</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Runtime:</span>
+                        <span class="status-value" id="runtime">00:00</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Progress:</span>
+                        <span class="status-value" id="progressText">0%</span>
+                    </div>
+                </div>
+
+                <!-- Progress Overview -->
+                <div class="progress-overview">
+                    <div class="progress-card">
+                        <div class="card-icon">📊</div>
+                        <div class="card-content">
+                            <div class="card-value" id="imagesFound">0</div>
+                            <div class="card-label">Images Found</div>
+                        </div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="card-icon">⬇️</div>
+                        <div class="card-content">
+                            <div class="card-value" id="downloaded">0</div>
+                            <div class="card-label">Downloaded</div>
+                        </div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="card-icon">❌</div>
+                        <div class="card-content">
+                            <div class="card-value" id="failed">0</div>
+                            <div class="card-label">Failed</div>
+                        </div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="card-icon">📄</div>
+                        <div class="card-content">
+                            <div class="card-value">
+                                <span id="currentPage">1</span>/<span id="totalPages">1</span>
+                            </div>
+                            <div class="card-label">Pages</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <div class="progress-bar" id="progressBar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+
+                <!-- Content Tabs -->
+                <div class="content-tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="preview">
+                            <span class="tab-icon">🖼️</span>
+                            Image Preview
+                        </button>
+                        <button class="tab-btn" data-tab="data">
+                            <span class="tab-icon">📋</span>
+                            Data Preview
+                        </button>
+                        <button class="tab-btn" data-tab="logs">
+                            <span class="tab-icon">📝</span>
+                            Activity Log
+                        </button>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content active" id="previewTab">
+                        <div class="preview-container">
+                            <div class="preview-grid" id="imagePreview">
+                                <div class="preview-placeholder">
+                                    <span class="placeholder-icon">📸</span>
+                                    <p>Scraped images will appear here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="dataTab">
+                        <div class="data-container">
+                            <div class="data-preview" id="dataPreview">
+                                <div class="no-data">No data to display yet</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="logsTab">
+                        <div class="logs-container">
+                            <div class="logs-header">
+                                <h3>Activity Log</h3>
+                                <div class="log-controls">
+                                    <button class="log-btn" id="clearLog">
+                                        <span class="btn-icon">🗑️</span>
+                                        Clear Log
+                                    </button>
+                                    <button class="log-btn" id="exportReport">
+                                        <span class="btn-icon">📄</span>
+                                        Export Report
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="log-display" id="logDisplay">
+                                <div class="log-entry">
+                                    <span class="log-time">Loading...</span>
+                                    <span class="log-message">STEPTWO Gallery Scraper dashboard ready</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Bar -->
+                <div class="action-bar">
+                    <div class="action-group">
+                        <h4>Download Actions</h4>
+                        <div class="action-buttons">
+                            <button class="action-btn" id="downloadAll">
+                                <span class="btn-icon">⬇️</span>
+                                Download All
+                            </button>
+                            <button class="action-btn" id="stopDownloads">
+                                <span class="btn-icon">⏹️</span>
+                                Stop Downloads
+                            </button>
+                            <button class="action-btn" id="openDownloads">
+                                <span class="btn-icon">📁</span>
+                                Open Downloads
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="action-group">
+                        <h4>Export Actions</h4>
+                        <div class="action-buttons">
+                            <button class="action-btn" id="exportJsonBtn">
+                                <span class="btn-icon">📄</span>
+                                Export JSON
+                            </button>
+                            <button class="action-btn" id="exportCSVBtn">
+                                <span class="btn-icon">📊</span>
+                                Export CSV
+                            </button>
+                            <button class="action-btn" id="exportXLSXBtn">
+                                <span class="btn-icon">📈</span>
+                                Export XLSX
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="action-group">
+                        <h4>Debug Actions</h4>
+                        <div class="action-buttons">
+                            <button class="action-btn" id="debugPage">
+                                <span class="btn-icon">🐛</span>
+                                Debug Page
+                            </button>
+                            <button class="action-btn" id="refreshConnection">
+                                <span class="btn-icon">🔄</span>
+                                Refresh Connection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Scripts -->
+    <script src="dashboard.js"></script>
+</body>
+</html>

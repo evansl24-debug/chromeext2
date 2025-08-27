@@ -1,0 +1,70 @@
+{
+  "manifest_version": 3,
+  "name": "STEPTWO Gallery Scraper",
+  "version": "2.3.8",
+  "description": "Professional Chrome extension for scraping image galleries with advanced pagination and export capabilities",
+  "author": "STEPTWO Development Team",
+  "homepage_url": "https://github.com/steptwo/gallery-scraper",
+  "update_url": "https://raw.githubusercontent.com/steptwo/gallery-scraper/main/updates.xml",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting",
+    "downloads",
+    "windows"
+  ],
+  
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'"
+  },
+  
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_end",
+      "all_frames": false
+    }
+  ],
+  
+  "action": {
+    "default_title": "STEPTWO Gallery Scraper - Click to open dashboard",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "dashboard.html",
+        "dashboard.js", 
+        "dashboard.css",
+        "icons/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  
+  "minimum_chrome_version": "88"
+}
