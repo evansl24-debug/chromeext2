@@ -553,7 +553,78 @@ class MessageHandler {
                         return await window.extractImagesFromPage(settings);
                     }
                 } catch (e) {}
-                return { images: [] };
+                // Fallback ad-hoc extractor when content script is unavailable
+                function pickBestFromSrcset(srcset) {
+                    if (!srcset) return null;
+                    const parts = srcset.split(',').map(s => s.trim()).filter(Boolean);
+                    let best = null; let bestScore = -1;
+                    for (const p of parts) {
+                        const [url, desc] = p.split(/\s+/);
+                        if (!url) continue;
+                        const mW = desc && desc.match(/^(\d+)w$/);
+                        const mX = desc && desc.match(/^([\d.]+)x$/);
+                        let score = -1;
+                        if (mW) score = parseInt(mW[1], 10);
+                        else if (mX) score = parseFloat(mX[1]);
+                        if (score > bestScore) { bestScore = score; best = url; }
+                        if (!desc && !best) best = url;
+                    }
+                    return best;
+                }
+                function getImageUrlFromEl(el) {
+                    const tag = el.tagName && el.tagName.toLowerCase();
+                    if (tag === 'img') {
+                        if (el.currentSrc && !String(el.currentSrc).startsWith('data:')) return el.currentSrc;
+                        if (el.src && !String(el.src).startsWith('data:')) return el.src;
+                        const dataAttrs = ['data-src','data-original','data-lazy','data-file','data-large_image'];
+                        for (const a of dataAttrs) { const v = el.getAttribute(a); if (v) return v; }
+                        const dss = el.getAttribute('data-srcset'); if (dss) { const p = pickBestFromSrcset(dss); if (p) return p; }
+                        const ss = el.getAttribute('srcset'); if (ss) { const p = pickBestFromSrcset(ss); if (p) return p; }
+                    }
+                    if (tag === 'source') {
+                        const ss = el.getAttribute('srcset'); if (ss) { const p = pickBestFromSrcset(ss); if (p) return p; }
+                        if (el.src) return el.src;
+                    }
+                    const child = el.querySelector && el.querySelector('img, picture img, source');
+                    if (child) { const u = getImageUrlFromEl(child); if (u) return u; }
+                    const cs = getComputedStyle(el);
+                    if (cs && cs.backgroundImage && cs.backgroundImage !== 'none') {
+                        const m = cs.backgroundImage.match(/url\(["']?(.*?)["']?\)/); if (m && m[1]) return m[1];
+                    }
+                    const inline = el.getAttribute && el.getAttribute('style');
+                    if (inline && inline.includes('background-image')) {
+                        const m = inline.match(/url\(["']?(.*?)["']?\)/); if (m && m[1]) return m[1];
+                    }
+                    return null;
+                }
+                try {
+                    const robustDefault = 'img, picture img, [data-src], [data-srcset], [style*="background-image"]';
+                    const imageSel = settings && (settings.imageSelector || (settings.selectors && settings.selectors.image)) || robustDefault;
+                    const containerSel = settings && (settings.containerSelector || (settings.selectors && settings.selectors.container)) || '';
+                    let nodes = [];
+                    if (containerSel) {
+                        document.querySelectorAll(containerSel).forEach(c => {
+                            try { c.querySelectorAll(imageSel).forEach(n => nodes.push(n)); } catch(e) {}
+                        });
+                    } else {
+                        nodes = Array.from(document.querySelectorAll(imageSel));
+                    }
+                    const seen = new Set();
+                    const images = [];
+                    for (const el of nodes) {
+                        let url = getImageUrlFromEl(el);
+                        if (!url) continue;
+                        if (url.startsWith('//')) url = location.protocol + url;
+                        try { url = new URL(url, location.href).toString(); } catch(e) { continue; }
+                        if (url.startsWith('data:')) continue;
+                        if (seen.has(url)) continue;
+                        seen.add(url);
+                        images.push({ url });
+                    }
+                    return { images };
+                } catch (e) {
+                    return { images: [] };
+                }
             },
             args: [settings]
         });

@@ -24,7 +24,10 @@ window.addEventListener('error', (event) => {
         if (filename && !String(filename).startsWith('chrome-extension://')) return;
         const message = (event && event.error && event.error.message) || event.message || 'Unknown error';
         log('Global error in content script:', message);
-        handleScrapingError({ error: `Global error: ${message}` , filename, lineno: event && event.lineno, type: 'error' });
+        // Avoid overly noisy reporting in production
+        if (CONTENT_DEBUG) {
+            handleScrapingError({ error: `Global error: ${message}` , filename, lineno: event && event.lineno, type: 'error' });
+        }
     } catch (e) {
         // swallow
     }
@@ -35,7 +38,9 @@ window.addEventListener('unhandledrejection', (event) => {
     try {
         const reason = (event && event.reason && (event.reason.message || String(event.reason))) || 'Unknown rejection';
         log('Unhandled promise rejection in content script:', reason);
-        handleScrapingError({ error: `Unhandled promise rejection: ${reason}`, type: 'unhandledrejection' });
+        if (CONTENT_DEBUG) {
+            handleScrapingError({ error: `Unhandled promise rejection: ${reason}`, type: 'unhandledrejection' });
+        }
     } catch (e) {
         // swallow
     }
